@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command -v codex >/dev/null 2>&1 || {
+    printf '%s\n' 'quickfix: codex is required; install it and run `codex login`' >&2
+    exit 1
+}
+
+root=$(cd -- "$(dirname -- "$0")" && pwd -P)
+bin_dir=${HOME}/.local/bin
+config_dir=${XDG_CONFIG_HOME:-${HOME}/.config}/quickfix
+zsh_rc=${ZDOTDIR:-${HOME}}/.zshrc
+
+mkdir -p -- "$bin_dir" "$config_dir" "$(dirname -- "$zsh_rc")"
+install -m 755 -- "$root/quickfix" "$bin_dir/quickfix"
+install -m 644 -- "$root/quickfix.zsh" "$config_dir/quickfix.zsh"
+
+touch -- "$zsh_rc"
+temporary=$(mktemp "${zsh_rc}.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+
+awk '
+    /^# quickfix begin$/ { skip = 1; next }
+    /^# quickfix end$/ { skip = 0; next }
+    /^# cmdsmith integration begin$/ { skip = 1; next }
+    /^# cmdsmith integration end$/ { skip = 0; next }
+    !skip { lines[++count] = $0 }
+    END {
+        while (count && lines[count] == "") {
+            count--
+        }
+        for (line = 1; line <= count; line++) {
+            print lines[line]
+        }
+    }
+' "$zsh_rc" >"$temporary"
+
+{
+    printf '\n# quickfix begin\n'
+    printf 'source %q\n' "$config_dir/quickfix.zsh"
+    printf '# quickfix end\n'
+} >>"$temporary"
+
+chmod --reference="$zsh_rc" "$temporary"
+mv -- "$temporary" "$zsh_rc"
+trap - EXIT
+
+printf 'installed quickfix\n  command: %s\n  Alt+O:   %s\n' \
+    "$bin_dir/quickfix" "$config_dir/quickfix.zsh"
+printf 'restart Zsh with: exec zsh\n'

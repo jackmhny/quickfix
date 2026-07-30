@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root=$(cd -- "$(dirname -- "$0")/.." && pwd -P)
+scratch=$(mktemp -d)
+trap 'rm -rf -- "$scratch"' EXIT
+
+mkdir -p "$scratch/bin"
+cat >"$scratch/bin/codex" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$QUICKFIX_TEST_ARGS"
+printf '```sh\n$ ls -la\n```\n'
+FAKE
+chmod +x "$scratch/bin/codex"
+
+export PATH="$scratch/bin:$PATH"
+export QUICKFIX_TEST_ARGS="$scratch/args"
+
+zsh_bin=$(command -v zsh || true)
+[[ -n $zsh_bin ]] || {
+    printf '%s\n' 'zsh is required to test the Alt+O widget' >&2
+    exit 1
+}
+
+bash -n "$root/quickfix"
+bash -n "$root/install"
+"$zsh_bin" -n "$root/quickfix.zsh"
+
+result=$("$root/quickfix" 'list everything')
+[[ $result == 'ls -la' ]]
+grep -Fx -- 'gpt-5.6-luna' "$scratch/args" >/dev/null
+grep -Fx -- 'model_reasoning_effort="low"' "$scratch/args" >/dev/null
+
+result=$(QUICKFIX_MODEL=gpt-5.6-terra QUICKFIX_REASONING=medium \
+    "$root/quickfix" 'list everything')
+[[ $result == 'ls -la' ]]
+grep -Fx -- 'gpt-5.6-terra' "$scratch/args" >/dev/null
+grep -Fx -- 'model_reasoning_effort="medium"' "$scratch/args" >/dev/null
+
+if printf ' \n' | "$root/quickfix" >/dev/null 2>&1; then
+    printf '%s\n' 'empty input unexpectedly succeeded' >&2
+    exit 1
+fi
+
+test_home="$scratch/home"
+mkdir -p "$test_home/zsh"
+cat >"$test_home/zsh/.zshrc" <<'RC'
+keep=this
+# cmdsmith integration begin
+source /old/cmdsmith.zsh
+# cmdsmith integration end
+RC
+
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
+    ZDOTDIR="$test_home/zsh" "$root/install" >/dev/null
+installed_rc=$(<"$test_home/zsh/.zshrc")
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
+    ZDOTDIR="$test_home/zsh" "$root/install" >/dev/null
+
+test -x "$test_home/.local/bin/quickfix"
+test -f "$test_home/.config/quickfix/quickfix.zsh"
+grep -Fx -- 'keep=this' "$test_home/zsh/.zshrc" >/dev/null
+! grep -F -- 'cmdsmith' "$test_home/zsh/.zshrc" >/dev/null
+[[ $(grep -Fc -- '# quickfix begin' "$test_home/zsh/.zshrc") -eq 1 ]]
+[[ $(<"$test_home/zsh/.zshrc") == "$installed_rc" ]]
+"$zsh_bin" -n "$test_home/zsh/.zshrc"
+
+if [[ ${QUICKFIX_LIVE_TEST:-0} == 1 ]]; then
+    PATH=${PATH#"$scratch/bin:"} "$root/quickfix" \
+        'print the current directory' | grep -E '[^[:space:]]' >/dev/null
+fi
+
+printf '%s\n' 'quickfix tests passed'
