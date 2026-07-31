@@ -10,6 +10,11 @@ mkdir -p "$scratch/bin"
 cat >"$scratch/bin/codex" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$QUICKFIX_TEST_ARGS"
+[[ ${QUICKFIX_TEST_DELAY:-0} == 1 ]] && sleep 0.2
+if [[ ${QUICKFIX_TEST_FAIL:-0} == 1 ]]; then
+    printf '%s\n' 'quickfix test failure' >&2
+    exit 7
+fi
 printf '```sh\n$ ls -la\n```\n'
 FAKE
 chmod +x "$scratch/bin/codex"
@@ -68,14 +73,26 @@ bash --noprofile --norc -c \
      bind -m emacs-standard -X 2>/dev/null | grep -F _quickfix_alt_o >/dev/null
      bind -m vi-insert -X 2>/dev/null | grep -F _quickfix_alt_o >/dev/null' \
     quickfix-test "$test_home/.config/quickfix/quickfix.bash"
-bash --noprofile --norc -c '
+QUICKFIX_TEST_DELAY=1 bash --noprofile --norc -c '
     PATH="$2/.local/bin:$PATH"
     source "$1" 2>/dev/null
     READLINE_LINE="list everything"
     READLINE_POINT=${#READLINE_LINE}
     _quickfix_alt_o
     [[ $READLINE_LINE == "ls -la" ]]
-' quickfix-test "$test_home/.config/quickfix/quickfix.bash" "$test_home"
+' quickfix-test "$test_home/.config/quickfix/quickfix.bash" "$test_home" \
+    2>"$scratch/throbber"
+grep -F 'quickfix ' "$scratch/throbber" >/dev/null
+
+QUICKFIX_TEST_FAIL=1 bash --noprofile --norc -c '
+    PATH="$2/.local/bin:$PATH"
+    source "$1" 2>/dev/null
+    READLINE_LINE="keep this request"
+    READLINE_POINT=${#READLINE_LINE}
+    _quickfix_alt_o
+    [[ $READLINE_LINE == "keep this request" ]]
+' quickfix-test "$test_home/.config/quickfix/quickfix.bash" "$test_home" \
+    2>/dev/null
 
 mkdir -p "$test_home/zsh"
 cat >"$test_home/zsh/.zshrc" <<'RC'
