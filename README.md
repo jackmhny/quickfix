@@ -29,7 +29,9 @@ distro-specific package. The installer uses standard GNU userland tools present
 on all three distributions.
 
 Type `show the ten largest files here`, press Alt+O, inspect the generated
-command, and press Enter only if it is what you wanted.
+command, and press Enter only if it is what you wanted. While Codex works,
+Quickfix leaves your request in place and animates a throbber on the next line.
+If generation fails, your original line stays untouched.
 
 The default installer writes:
 
