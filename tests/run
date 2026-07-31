@@ -63,7 +63,10 @@ grep -Fx -- 'keep=bash' "$test_home/.bashrc" >/dev/null
 [[ $(<"$test_home/.bashrc") == "$installed_bash_rc" ]]
 bash -n "$test_home/.bashrc"
 bash --noprofile --norc -c \
-    'source "$1" 2>/dev/null; declare -F _quickfix_alt_o >/dev/null' \
+    'source "$1" 2>/dev/null
+     declare -F _quickfix_alt_o >/dev/null
+     bind -m emacs-standard -X 2>/dev/null | grep -F _quickfix_alt_o >/dev/null
+     bind -m vi-insert -X 2>/dev/null | grep -F _quickfix_alt_o >/dev/null' \
     quickfix-test "$test_home/.config/quickfix/quickfix.bash"
 bash --noprofile --norc -c '
     PATH="$2/.local/bin:$PATH"
