@@ -19,18 +19,20 @@ export QUICKFIX_TEST_ARGS="$scratch/args"
 
 zsh_bin=$(command -v zsh || true)
 [[ -n $zsh_bin ]] || {
-    printf '%s\n' 'zsh is required to test the Alt+O widget' >&2
+    printf '%s\n' 'zsh is required to test the optional Zsh widget' >&2
     exit 1
 }
 
 bash -n "$root/quickfix"
+bash -n "$root/quickfix.bash"
 bash -n "$root/install"
 "$zsh_bin" -n "$root/quickfix.zsh"
 
-result=$("$root/quickfix" 'list everything')
+result=$(QUICKFIX_SHELL=bash "$root/quickfix" 'list everything')
 [[ $result == 'ls -la' ]]
 grep -Fx -- 'gpt-5.6-luna' "$scratch/args" >/dev/null
 grep -Fx -- 'model_reasoning_effort="low"' "$scratch/args" >/dev/null
+grep -Fx -- 'Shell: bash' "$scratch/args" >/dev/null
 
 result=$(QUICKFIX_MODEL=gpt-5.6-terra QUICKFIX_REASONING=medium \
     "$root/quickfix" 'list everything')
@@ -44,26 +46,53 @@ if printf ' \n' | "$root/quickfix" >/dev/null 2>&1; then
 fi
 
 test_home="$scratch/home"
+mkdir -p "$test_home"
+printf '%s\n' 'keep=bash' >"$test_home/.bashrc"
+
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
+    "$root/install" >/dev/null
+installed_bash_rc=$(<"$test_home/.bashrc")
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
+    "$root/install" >/dev/null
+
+test -x "$test_home/.local/bin/quickfix"
+test -f "$test_home/.config/quickfix/quickfix.bash"
+test ! -e "$test_home/.config/quickfix/quickfix.zsh"
+grep -Fx -- 'keep=bash' "$test_home/.bashrc" >/dev/null
+[[ $(grep -Fc -- '# quickfix begin' "$test_home/.bashrc") -eq 1 ]]
+[[ $(<"$test_home/.bashrc") == "$installed_bash_rc" ]]
+bash -n "$test_home/.bashrc"
+bash --noprofile --norc -c \
+    'source "$1" 2>/dev/null; declare -F _quickfix_alt_o >/dev/null' \
+    quickfix-test "$test_home/.config/quickfix/quickfix.bash"
+bash --noprofile --norc -c '
+    PATH="$2/.local/bin:$PATH"
+    source "$1" 2>/dev/null
+    READLINE_LINE="list everything"
+    READLINE_POINT=${#READLINE_LINE}
+    _quickfix_alt_o
+    [[ $READLINE_LINE == "ls -la" ]]
+' quickfix-test "$test_home/.config/quickfix/quickfix.bash" "$test_home"
+
 mkdir -p "$test_home/zsh"
 cat >"$test_home/zsh/.zshrc" <<'RC'
-keep=this
+keep=zsh
 # cmdsmith integration begin
 source /old/cmdsmith.zsh
 # cmdsmith integration end
 RC
 
 HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
-    ZDOTDIR="$test_home/zsh" "$root/install" >/dev/null
-installed_rc=$(<"$test_home/zsh/.zshrc")
+    ZDOTDIR="$test_home/zsh" "$root/install" zsh >/dev/null
+installed_zsh_rc=$(<"$test_home/zsh/.zshrc")
 HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
-    ZDOTDIR="$test_home/zsh" "$root/install" >/dev/null
+    ZDOTDIR="$test_home/zsh" "$root/install" zsh >/dev/null
 
-test -x "$test_home/.local/bin/quickfix"
 test -f "$test_home/.config/quickfix/quickfix.zsh"
-grep -Fx -- 'keep=this' "$test_home/zsh/.zshrc" >/dev/null
+grep -Fx -- 'keep=zsh' "$test_home/zsh/.zshrc" >/dev/null
 ! grep -F -- 'cmdsmith' "$test_home/zsh/.zshrc" >/dev/null
 [[ $(grep -Fc -- '# quickfix begin' "$test_home/zsh/.zshrc") -eq 1 ]]
-[[ $(<"$test_home/zsh/.zshrc") == "$installed_rc" ]]
+[[ $(<"$test_home/zsh/.zshrc") == "$installed_zsh_rc" ]]
 "$zsh_bin" -n "$test_home/zsh/.zshrc"
 
 if [[ ${QUICKFIX_LIVE_TEST:-0} == 1 ]]; then

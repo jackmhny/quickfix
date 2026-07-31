@@ -7,17 +7,41 @@ command -v codex >/dev/null 2>&1 || {
     exit 1
 }
 
+shell=${1:-bash}
+[[ $# -le 1 ]] || {
+    printf '%s\n' 'usage: ./install [bash|zsh]' >&2
+    exit 1
+}
+
 root=$(cd -- "$(dirname -- "$0")" && pwd -P)
 bin_dir=${HOME}/.local/bin
 config_dir=${XDG_CONFIG_HOME:-${HOME}/.config}/quickfix
-zsh_rc=${ZDOTDIR:-${HOME}}/.zshrc
 
-mkdir -p -- "$bin_dir" "$config_dir" "$(dirname -- "$zsh_rc")"
+case $shell in
+    bash)
+        asset=$config_dir/quickfix.bash
+        source_file=$root/quickfix.bash
+        shell_rc=${QUICKFIX_RC:-${HOME}/.bashrc}
+        restart='exec bash'
+        ;;
+    zsh)
+        asset=$config_dir/quickfix.zsh
+        source_file=$root/quickfix.zsh
+        shell_rc=${QUICKFIX_RC:-${ZDOTDIR:-${HOME}}/.zshrc}
+        restart='exec zsh'
+        ;;
+    *)
+        printf '%s\n' 'usage: ./install [bash|zsh]' >&2
+        exit 1
+        ;;
+esac
+
+mkdir -p -- "$bin_dir" "$config_dir" "$(dirname -- "$shell_rc")"
 install -m 755 -- "$root/quickfix" "$bin_dir/quickfix"
-install -m 644 -- "$root/quickfix.zsh" "$config_dir/quickfix.zsh"
+install -m 644 -- "$source_file" "$asset"
 
-touch -- "$zsh_rc"
-temporary=$(mktemp "${zsh_rc}.XXXXXX")
+touch -- "$shell_rc"
+temporary=$(mktemp "${shell_rc}.XXXXXX")
 trap 'rm -f -- "$temporary"' EXIT
 
 awk '
@@ -34,18 +58,18 @@ awk '
             print lines[line]
         }
     }
-' "$zsh_rc" >"$temporary"
+' "$shell_rc" >"$temporary"
 
 {
     printf '\n# quickfix begin\n'
-    printf 'source %q\n' "$config_dir/quickfix.zsh"
+    printf 'source %q\n' "$asset"
     printf '# quickfix end\n'
 } >>"$temporary"
 
-chmod --reference="$zsh_rc" "$temporary"
-mv -- "$temporary" "$zsh_rc"
+chmod --reference="$shell_rc" "$temporary"
+mv -- "$temporary" "$shell_rc"
 trap - EXIT
 
-printf 'installed quickfix\n  command: %s\n  Alt+O:   %s\n' \
-    "$bin_dir/quickfix" "$config_dir/quickfix.zsh"
-printf 'restart Zsh with: exec zsh\n'
+printf 'installed quickfix for %s\n  command: %s\n  Alt+O:   %s\n' \
+    "$shell" "$bin_dir/quickfix" "$asset"
+printf 'restart the shell with: %s\n' "$restart"

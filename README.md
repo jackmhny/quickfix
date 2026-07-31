@@ -1,6 +1,6 @@
 # quickfix
 
-`quickfix` turns the text in your Zsh command line into an editable shell
+`quickfix` turns the text in your Bash command line into an editable shell
 command when you press Alt+O. It does not execute the result.
 
 That is the whole tool.
@@ -13,27 +13,34 @@ your ChatGPT subscription, then run:
 ```sh
 codex login
 ./install
+exec bash
+```
+
+The default installation targets Bash. For Zsh instead:
+
+```sh
+./install zsh
 exec zsh
 ```
 
-Quickfix supports Arch Linux, Debian, and Ubuntu. It requires Bash, Zsh, and
-Codex; quickfix itself adds no Python, Node.js, package manager, or
+Quickfix supports Arch Linux, Debian, and Ubuntu. It requires Bash and Codex;
+Zsh is optional. Quickfix itself adds no Python, Node.js, package manager, or
 distro-specific package. The installer uses standard GNU userland tools present
 on all three distributions.
 
 Type `show the ten largest files here`, press Alt+O, inspect the generated
 command, and press Enter only if it is what you wanted.
 
-The installer puts two files on the system:
+The default installer writes:
 
 ```text
 ~/.local/bin/quickfix
-~/.config/quickfix/quickfix.zsh
+~/.config/quickfix/quickfix.bash
 ```
 
-It adds one managed source block to `${ZDOTDIR:-$HOME}/.zshrc`. Re-running the
-installer updates the files without duplicating the block. It also removes the
-old managed `cmdsmith` block.
+It adds one managed source block to `~/.bashrc`. Re-running the installer
+updates the files without duplicating the block. The optional Zsh installation
+writes `quickfix.zsh` and updates `${ZDOTDIR:-$HOME}/.zshrc` instead.
 
 ## Defaults
 
@@ -51,13 +58,8 @@ Bash and Codex.
 
 ## Remove
 
-Delete the two installed files and this block from your Zsh startup file:
-
-```zsh
-# quickfix begin
-source /home/you/.config/quickfix/quickfix.zsh
-# quickfix end
-```
+Delete `~/.local/bin/quickfix`, the installed widget, and the managed quickfix
+block from `.bashrc` or `.zshrc`.
 
 ## Test
 
@@ -65,8 +67,8 @@ source /home/you/.config/quickfix/quickfix.zsh
 ./tests/run
 ```
 
-The test suite uses a fake `codex`; it does not spend tokens. Set
-`QUICKFIX_LIVE_TEST=1` to include one real generation using your current Codex
-login.
+The test suite uses a fake `codex`; it does not spend tokens. It checks the
+default Bash path and optional Zsh path. Set `QUICKFIX_LIVE_TEST=1` to include
+one real generation using your current Codex login.
 
 MIT licensed.
